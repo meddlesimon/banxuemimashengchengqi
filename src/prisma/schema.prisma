@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 系统配置，存储全局指针和状态
+model SystemConfig {
+  key   String @id
+  value String
+}
+
+// 管理员表
+model Admin {
+  id            String   @id @default(cuid())
+  phone         String   @unique
+  passwordHash  String
+  role          String   // "SUPER_ADMIN", "ADMIN"
+  createdAt     DateTime @default(now())
+}
+
+// 家长白名单表
+model Parent {
+  id               String   @id @default(cuid())
+  phone            String   @unique
+  status           String   @default("NORMAL") // "NORMAL", "DISABLED"
+  lastAccountId    String?
+  lastAssignedAt   DateTime?
+  createdAt        DateTime @default(now())
+}
+
+// 伴学APP账号池
+model AccountPool {
+  id        String   @id @default(cuid())
+  username  String
+  password  String
+  status    String   @default("VALID") // "VALID", "INVALID"
+  createdAt DateTime @default(now())
+}
+
+// 循环记录（用于监控单圈耗时）
+model CycleLog {
+  id          Int      @id @default(autoincrement())
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  duration    Int?     // 秒
+}
