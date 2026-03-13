@@ -16,18 +16,36 @@ if (DB_TYPE === 'mysql') {
     port: Number(process.env.MYSQL_PORT) || 3306,
   });
 } else {
-  const dbPath = path.resolve(process.cwd(), 'dev.db');
+  const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'dev.db');
   sqliteDb = new Database(dbPath);
   sqliteDb.exec(`
       CREATE TABLE IF NOT EXISTS system_config (key TEXT PRIMARY KEY, value TEXT);
       CREATE TABLE IF NOT EXISTS admins (id TEXT PRIMARY KEY, phone TEXT UNIQUE, password_hash TEXT, role TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-      CREATE TABLE IF NOT EXISTS parents (id TEXT PRIMARY KEY, phone TEXT UNIQUE, status TEXT DEFAULT 'NORMAL', last_account_id TEXT, last_assigned_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS official_students (phone TEXT PRIMARY KEY, name TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+      CREATE TABLE IF NOT EXISTS parents (id TEXT PRIMARY KEY, phone TEXT UNIQUE, password_hash TEXT, status TEXT DEFAULT 'PENDING', last_account_id TEXT, last_assigned_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS account_pool (id TEXT PRIMARY KEY, username TEXT, password TEXT, status TEXT DEFAULT 'VALID', created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE IF NOT EXISTS cycle_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, start_time DATETIME DEFAULT CURRENT_TIMESTAMP, end_time DATETIME, duration INTEGER);
       CREATE TABLE IF NOT EXISTS verification_codes (phone TEXT PRIMARY KEY, code TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
       INSERT OR IGNORE INTO admins (id, phone, password_hash, role) VALUES ('admin_super', '17888837833', '230101', 'SUPER_ADMIN');
       INSERT OR IGNORE INTO system_config (key, value) VALUES ('global_pointer', '0');
     `);
+
+  // 自动迁移逻辑：确保 parents 表包含必要的列
+  const tableInfo = sqliteDb.prepare("PRAGMA table_info(parents)").all();
+  const columns = tableInfo.map((col: any) => col.name);
+  if (!columns.includes('password_hash')) {
+    sqliteDb.exec("ALTER TABLE parents ADD COLUMN password_hash TEXT;");
+  }
+  if (!columns.includes('status')) {
+    sqliteDb.exec("ALTER TABLE parents ADD COLUMN status TEXT DEFAULT 'PENDING';");
+  }
+  
+  // 自动迁移逻辑：确保 account_pool 表包含 last_sent_at 列
+  const accountTableInfo = sqliteDb.prepare("PRAGMA table_info(account_pool)").all();
+  const accountColumns = accountTableInfo.map((col: any) => col.name);
+  if (!accountColumns.includes('last_sent_at')) {
+    sqliteDb.exec("ALTER TABLE account_pool ADD COLUMN last_sent_at DATETIME;");
+  }
 }
 
 const db = {

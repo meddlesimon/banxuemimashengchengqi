@@ -52,7 +52,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </nav>
                 <div style={{ marginTop: 'auto', paddingTop: '2rem' }}>
                     <button
-                        onClick={() => { localStorage.removeItem('admin_user'); router.push('/admin/login'); }}
+                        onClick={async () => {
+                            await fetch('/api/admin/logout', { method: 'POST' });
+                            localStorage.removeItem('admin_user');
+                            router.push('/admin/login');
+                        }}
                         style={{ width: '100%', background: 'var(--error)', padding: '10px', borderRadius: '10px', border: 'none', color: 'white', cursor: 'pointer' }}
                     >
                         退出登录

@@ -15,16 +15,21 @@
   "description": "",
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
     "mysql2": "^3.18.2",
     "next": "^16.1.6",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "tencentcloud-sdk-nodejs": "^4.1.189",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9.39.3",
     "eslint-config-next": "^16.1.6",
     "typescript": "^5.9.3"

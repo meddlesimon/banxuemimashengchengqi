@@ -28,7 +28,8 @@ export default function ParentsPage() {
     };
 
     const toggleStatus = async (id: string, currentStatus: string) => {
-        const newStatus = currentStatus === 'NORMAL' ? 'DISABLED' : 'NORMAL';
+        // 如果当前是已开通，则切换为停用；否则（待审核或已停用）一律切换为已开通
+        const newStatus = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
         await fetch('/api/admin/parents', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -83,16 +84,16 @@ export default function ParentsPage() {
                                         padding: '4px 8px',
                                         borderRadius: '6px',
                                         fontSize: '0.8rem',
-                                        background: p.status === 'NORMAL' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)',
-                                        color: p.status === 'NORMAL' ? 'var(--success)' : 'var(--error)'
+                                        background: p.status === 'ACTIVE' ? 'rgba(16,185,129,0.2)' : (p.status === 'PENDING' ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)'),
+                                        color: p.status === 'ACTIVE' ? 'var(--success)' : (p.status === 'PENDING' ? '#d97706' : 'var(--error)')
                                     }}>
-                                        {p.status === 'NORMAL' ? '正常' : '已停用'}
+                                        {p.status === 'ACTIVE' ? '已开通' : (p.status === 'PENDING' ? '待审核' : '已停用')}
                                     </span>
                                 </td>
                                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{new Date(p.created_at).toLocaleString()}</td>
                                 <td style={{ padding: '1rem' }}>
                                     <button onClick={() => toggleStatus(p.id, p.status)} style={{ marginRight: '1rem', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                                        {p.status === 'NORMAL' ? '停用' : '启用'}
+                                        {p.status === 'ACTIVE' ? '停用' : '启用/开通'}
                                     </button>
                                     <button onClick={() => deleteParent(p.id)} style={{ color: 'var(--error)', background: 'none', border: 'none', cursor: 'pointer' }}>删除</button>
                                 </td>

@@ -14,20 +14,27 @@ export interface Account {
  */
 export async function getAssignedAccount(parentPhone: string): Promise<Account | null> {
     const now = new Date();
-    const ttlMs = 1.5 * 60 * 60 * 1000;
+    
+    // 获取动态配置的时间阈值 (默认 90 分钟)
+    const ttlConfig = await db.prepare("SELECT value FROM system_config WHERE key = 'distribution_ttl_minutes'").get() as any;
+    let ttlMinutes = 90;
+    if (ttlConfig && ttlConfig.value) {
+        const parsed = parseInt(ttlConfig.value, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+            ttlMinutes = parsed;
+        }
+    }
+    const ttlMs = ttlMinutes * 60 * 1000;
 
-    // 1. 检查家长是否存在
-    let parent = await db.prepare('SELECT * FROM parents WHERE phone = ?').get(parentPhone) as any;
+    // 1. 检查家长是否存在且已激活
+    const parent = await db.prepare('SELECT * FROM parents WHERE phone = ?').get(parentPhone) as any;
 
     if (!parent) {
-        // [快速上线/测试模式] 自动录入新手机号
-        const newId = `p_auto_${Date.now()}`;
-        await db.prepare('INSERT INTO parents (id, phone, status) VALUES (?, ?, ?)').run(newId, parentPhone, 'NORMAL');
-        parent = await db.prepare('SELECT * FROM parents WHERE phone = ?').get(parentPhone) as any;
+        throw new Error('账号未注册，请先完成注册');
     }
 
-    if (parent.status !== 'NORMAL') {
-        throw new Error('此账号已停用，请联系管理员');
+    if (parent.status !== 'ACTIVE') {
+        throw new Error('账号未激活，请联系管理员开通会员');
     }
 
     // 2. 防刷记忆拦截 (1.5小时内直接返回)
@@ -58,6 +65,10 @@ export async function getAssignedAccount(parentPhone: string): Promise<Account |
     // 4. 更新家长分配记录
     await db.prepare('UPDATE parents SET last_account_id = ?, last_assigned_at = ? WHERE phone = ?')
         .run(selectedAccount.id, now.toISOString(), parentPhone);
+
+    // 4.1 更新账号的最新发放时间
+    await db.prepare('UPDATE account_pool SET last_sent_at = ? WHERE id = ?')
+        .run(now.toISOString(), selectedAccount.id);
 
     // 5. 移动指针
     let nextPointer = pointer + 1;

@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
     title: '伴学APP账号分发系统',
@@ -13,7 +14,13 @@ export default function RootLayout({
 }) {
     return (
         <html lang="zh-CN">
-            <body>{children}</body>
+            <body>
+                {children}
+                <Script
+                    src="https://ssl.captcha.qq.com/TCaptcha.js"
+                    strategy="beforeInteractive"
+                />
+            </body>
         </html>
     );
 }

@@ -1,12 +1,19 @@
 import db from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { verifyAdminRequest } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
+    if (!await verifyAdminRequest(request)) {
+        return NextResponse.json({ message: '未授权' }, { status: 401 });
+    }
     const admins = await db.prepare("SELECT id, phone, role, created_at FROM admins WHERE role = 'ADMIN'").all();
     return NextResponse.json(admins);
 }
 
 export async function POST(request: Request) {
+    if (!await verifyAdminRequest(request)) {
+        return NextResponse.json({ message: '未授权' }, { status: 401 });
+    }
     const { phone, password, role } = await request.json();
     const id = `admin_${Date.now()}`;
     try {
@@ -18,6 +25,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+    if (!await verifyAdminRequest(request)) {
+        return NextResponse.json({ message: '未授权' }, { status: 401 });
+    }
     const { id } = await request.json();
     await db.prepare("DELETE FROM admins WHERE id = ? AND role = 'ADMIN'").run(id);
     return NextResponse.json({ success: true });
