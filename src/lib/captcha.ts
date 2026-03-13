@@ -1,46 +1,43 @@
-import * as tencentcloud from 'tencentcloud-sdk-nodejs';
-
-const CaptchaClient = tencentcloud.captcha.v20190722.Client;
+import crypto from 'crypto';
+import { cookies } from 'next/headers';
 
 /**
- * 腾讯云验证码 (Captcha) 校验
+ * 校验本地图片验证码
+ * @param inputCode 用户输入的验证码
  */
-export async function verifyTencentCaptcha(ticket: string, randstr: string, userIp: string = "127.0.0.1") {
-    const captchaAppId = process.env.TENCENT_CAPTCHA_APP_ID || '191937675';
-    const captchaAppSecretKey = process.env.TENCENT_CAPTCHA_APP_SECRET_KEY || process.env.TENCENT_CAPTCHA_APP_KEY || 'bnTvSMtexsg7w921eNK1tH4LY';
-
-    const client = new CaptchaClient({
-        credential: {
-            secretId: process.env.TENCENTCLOUD_SECRET_ID || process.env.TENCENT_SECRET_ID || '',
-            secretKey: process.env.TENCENTCLOUD_SECRET_KEY || process.env.TENCENT_SECRET_KEY || ''
-        },
-        region: "",
-        profile: { httpProfile: { endpoint: "captcha.tencentcloudapi.com" } },
-    });
-
-    const params = {
-        CaptchaType: 9,
-        Ticket: ticket,
-        UserIp: userIp,
-        Randstr: randstr,
-        CaptchaAppId: Number(captchaAppId),
-        AppSecretKey: captchaAppSecretKey,
-    };
-
+export async function verifyLocalCaptcha(inputCode: string): Promise<boolean> {
     try {
-        const resp = await client.DescribeCaptchaResult(params);
-        console.log(`[Captcha] Response:`, JSON.stringify(resp));
+        const cookieStore = await cookies();
+        const token = cookieStore.get('captcha_token')?.value;
+        if (!token) return false;
 
-        if (resp.CaptchaCode === 1) {
-            return true;
-        }
+        const decoded = Buffer.from(token, 'base64').toString('utf8');
+        const parts = decoded.split(':');
+        if (parts.length !== 3) return false;
 
-        // 严格模式：任何非 1 的 code 均视为失败
-        console.error(`[Captcha] 校验失败: ${resp.CaptchaMsg} (Code: ${resp.CaptchaCode})`);
-        return false;
-    } catch (err: any) {
-        console.error("[Captcha] SDK 调用异常:", err.message || err);
-        // 异常时返回 false，不放行
+        const [code, expiresStr, hash] = parts;
+        const expires = parseInt(expiresStr, 10);
+
+        // 验证签名
+        const payload = `${code}:${expiresStr}`;
+        const expectedHash = crypto
+            .createHmac('sha256', process.env.JWT_SECRET || 'captcha-secret')
+            .update(payload)
+            .digest('hex');
+
+        if (hash !== expectedHash) return false;
+
+        // 验证过期
+        if (Date.now() > expires) return false;
+
+        // 验证码比对（不区分大小写）
+        if (inputCode.trim().toLowerCase() !== code.toLowerCase()) return false;
+
+        // 用后立即作废（删除 cookie）
+        cookieStore.delete('captcha_token');
+
+        return true;
+    } catch {
         return false;
     }
 }

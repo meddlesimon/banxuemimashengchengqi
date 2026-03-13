@@ -1,26 +1,24 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import bcrypt from 'bcryptjs';
-import { verifyTencentCaptcha } from '@/lib/captcha';
+import { verifyLocalCaptcha } from '@/lib/captcha';
 import { getAssignedAccount } from '@/lib/distribution';
 
 export async function POST(request: Request) {
     try {
-        const { phone, password, captchaTicket, captchaRandstr } = await request.json();
+        const { phone, password, captchaCode } = await request.json();
 
         if (!phone || !password) {
             return NextResponse.json({ message: '手机号和密码不能为空' }, { status: 400 });
         }
 
-        // 1. 滑块验证（无条件执行，不再接受 skipCaptcha 参数）
-        if (!captchaTicket || !captchaRandstr) {
-            return NextResponse.json({ message: '请完成滑块验证' }, { status: 400 });
+        // 1. 验证码校验
+        if (!captchaCode) {
+            return NextResponse.json({ message: '请输入验证码' }, { status: 400 });
         }
-
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
-        const captchaOk = await verifyTencentCaptcha(captchaTicket, captchaRandstr, ip);
+        const captchaOk = await verifyLocalCaptcha(captchaCode);
         if (!captchaOk) {
-            return NextResponse.json({ message: '滑块验证失败，请重试' }, { status: 400 });
+            return NextResponse.json({ message: '验证码错误或已过期，请刷新后重试' }, { status: 400 });
         }
 
         // 2. 查询用户

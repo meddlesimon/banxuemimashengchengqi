@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import bcrypt from 'bcryptjs';
-import { verifyTencentCaptcha } from '@/lib/captcha';
+import { verifyLocalCaptcha } from '@/lib/captcha';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
     try {
-        const { phone, password, captchaTicket, captchaRandstr } = await request.json();
+        const { phone, password, captchaCode } = await request.json();
 
-        if (!phone || !password || !captchaTicket || !captchaRandstr) {
+        if (!phone || !password || !captchaCode) {
             return NextResponse.json({ message: '手机号、密码和验证码均为必填' }, { status: 400 });
         }
 
@@ -16,12 +16,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: '手机号格式不正确' }, { status: 400 });
         }
 
-        // 1. 滑块验证
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
-        const captchaOk = await verifyTencentCaptcha(captchaTicket, captchaRandstr, ip);
+        // 1. 验证码校验
+        const captchaOk = await verifyLocalCaptcha(captchaCode);
         if (!captchaOk) {
-            // 注意：如果验证码校验返回 false，说明是真实的验证失败或配置极度错误
-            return NextResponse.json({ message: '图形验证码校验失败，请重试' }, { status: 400 });
+            return NextResponse.json({ message: '验证码错误或已过期，请刷新后重试' }, { status: 400 });
         }
 
         // 2. 检查是否已注册
@@ -36,7 +34,7 @@ export async function POST(request: Request) {
         // 4. 创建用户 (初始状态为 PENDING)
         const now = new Date();
         const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 19);
-        
+
         const id = uuidv4();
         await db.run(
             'INSERT INTO parents (id, phone, password_hash, status, created_at) VALUES (?, ?, ?, ?, ?)',
