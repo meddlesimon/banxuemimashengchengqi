@@ -8,22 +8,30 @@ export default function ParentPage() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [captchaCode, setCaptchaCode] = useState('');
-    const [captchaUrl, setCaptchaUrl] = useState('/api/captcha');
+    const [captchaImg, setCaptchaImg] = useState('');
+    const [captchaToken, setCaptchaToken] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [account, setAccount] = useState<any>(null);
     const [pendingMessage, setPendingMessage] = useState('');
 
-    const refreshCaptcha = useCallback(() => {
-        setCaptchaUrl(`/api/captcha?t=${Date.now()}`);
-        setCaptchaCode('');
+    const refreshCaptcha = useCallback(async () => {
+        try {
+            const res = await fetch('/api/captcha');
+            const data = await res.json();
+            setCaptchaImg(data.img);
+            setCaptchaToken(data.token);
+            setCaptchaCode('');
+        } catch {
+            // ignore
+        }
     }, []);
 
     const goToForm = (target: 'login' | 'register') => {
         setView(target);
         setError('');
         setCaptchaCode('');
-        setCaptchaUrl(`/api/captcha?t=${Date.now()}`);
+        refreshCaptcha();
     };
 
     const refreshStatus = async () => {
@@ -78,7 +86,7 @@ export default function ParentPage() {
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone, password, captchaCode: captchaCode.trim() }),
+                body: JSON.stringify({ phone, password, captchaCode: captchaCode.trim(), captchaToken }),
             });
             const data = await response.json();
             if (response.ok) {
@@ -231,9 +239,11 @@ export default function ParentPage() {
                                             required
                                         />
                                     </div>
-                                    <button type="button" className="captcha-img-btn" onClick={refreshCaptcha} title="点击刷新验证码">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={captchaUrl} alt="验证码" width={120} height={40} />
+                    <button type="button" className="captcha-img-btn" onClick={refreshCaptcha} title="点击刷新验证码">
+                                        {captchaImg && (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={captchaImg} alt="验证码" width={120} height={40} />
+                                        )}
                                     </button>
                                 </div>
                             </div>

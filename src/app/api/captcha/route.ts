@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import crypto from 'crypto';
 
 function generateCode(): string {
@@ -11,7 +10,6 @@ function generateSvg(code: string): string {
     const height = 40;
     const chars = code.split('');
 
-    // 随机干扰线
     const lines = Array.from({ length: 4 }, () => {
         const x1 = Math.random() * width;
         const y1 = Math.random() * height;
@@ -21,7 +19,6 @@ function generateSvg(code: string): string {
         return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="1.5"/>`;
     }).join('');
 
-    // 随机噪点
     const dots = Array.from({ length: 30 }, () => {
         const cx = Math.random() * width;
         const cy = Math.random() * height;
@@ -29,7 +26,6 @@ function generateSvg(code: string): string {
         return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="1.2" fill="${color}"/>`;
     }).join('');
 
-    // 每个字符随机偏移 + 颜色
     const texts = chars.map((ch, i) => {
         const x = 18 + i * 24 + (Math.random() * 6 - 3);
         const y = 26 + (Math.random() * 6 - 3);
@@ -38,36 +34,24 @@ function generateSvg(code: string): string {
         return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" transform="rotate(${rotate.toFixed(1)},${x.toFixed(1)},${y.toFixed(1)})" font-family="Arial,sans-serif" font-size="22" font-weight="bold" fill="${color}">${ch}</text>`;
     }).join('');
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="#f8fafc" rx="8"/>
-  ${lines}
-  ${dots}
-  ${texts}
-</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#f8fafc" rx="8"/>${lines}${dots}${texts}</svg>`;
 }
+
+const SECRET = process.env.JWT_SECRET || 'captcha-secret-key';
 
 export async function GET() {
     const code = generateCode();
     const svg = generateSvg(code);
+    const svgBase64 = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 
-    // 将验证码存入 cookie（加密存储，有效期 5 分钟）
+    // token = base64(code:expires:hmac)，放在响应 JSON 里，前端存 state，提交时带上
     const expires = Date.now() + 5 * 60 * 1000;
     const payload = `${code}:${expires}`;
-    const hash = crypto.createHmac('sha256', process.env.JWT_SECRET || 'captcha-secret').update(payload).digest('hex');
-    const token = Buffer.from(`${payload}:${hash}`).toString('base64');
+    const hmac = crypto.createHmac('sha256', SECRET).update(payload).digest('hex');
+    const token = Buffer.from(`${payload}:${hmac}`).toString('base64url');
 
-    const cookieStore = await cookies();
-    cookieStore.set('captcha_token', token, {
-        httpOnly: true,
-        maxAge: 300,
-        path: '/',
-        sameSite: 'lax',
-    });
-
-    return new NextResponse(svg, {
-        headers: {
-            'Content-Type': 'image/svg+xml',
-            'Cache-Control': 'no-store, no-cache',
-        },
-    });
+    return NextResponse.json(
+        { token, img: svgBase64 },
+        { headers: { 'Cache-Control': 'no-store' } }
+    );
 }
