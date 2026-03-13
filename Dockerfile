@@ -16,6 +16,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# 构建阶段创建 data 目录，避免 next build 时 db.ts 找不到目录报错
+RUN mkdir -p /app/data
+
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
@@ -48,19 +51,21 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # tencentcloud-sdk-nodejs 含原生扩展，standalone output tracing 无法自动追踪，需手动复制
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tencentcloud-sdk-nodejs ./node_modules/tencentcloud-sdk-nodejs
 
-# 确保数据库文件和目录有写权限 (SQLite 需要在同级目录创建 .wal/.shm 文件)
-COPY --from=builder --chown=nextjs:nodejs /app/dev.db ./dev.db
+# 数据库通过 Docker Volume 挂载持久化，不打包进镜像
+# 运行时挂载：-v /data/banxue:/app/data
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 # 关键修复：必须修改 /app 目录的所有权，否则 SQLite 无法创建临时文件
 RUN chown nextjs:nodejs /app
 
+# 启动脚本：确保 data 目录存在后再启动 node
+COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 8080
 
-ENV PORT 3000
-# set hostname to localhost
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
 
-# server.js is created by next build from the standalone output
-# https://nextjs.org/docs/pages/api-reference/next-config-js/output
-CMD ["node", "server.js"]
+CMD ["sh", "entrypoint.sh"]
